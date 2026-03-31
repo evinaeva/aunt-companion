@@ -1,1 +1,5 @@
-"""Phase 1 placeholder module."""
+"""LLM package exports."""
+
+from app.llm.client import LlamaClient
+
+__all__ = ["LlamaClient"]
