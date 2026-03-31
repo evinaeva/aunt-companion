@@ -119,7 +119,7 @@ Implement at least these tables:
 - `user_settings`
 - `messages`
 - `profile_facts`
-- `conversation_summaries`
+- `daily_summaries`
 
 Use SQLite WAL mode and a busy timeout.
 

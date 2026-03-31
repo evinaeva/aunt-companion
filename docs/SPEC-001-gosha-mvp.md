@@ -107,7 +107,7 @@ Minimal persistent entities:
 - `user_settings`
 - `messages`
 - `profile_facts`
-- `conversation_summaries`
+- `daily_summaries`
 
 ### Key invariants
 - every memory query is scoped by `user_id`
