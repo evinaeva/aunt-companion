@@ -1,0 +1,15 @@
+[Unit]
+Description=Gosha Telegram bot
+After=network.target gosha-llama.service
+Requires=gosha-llama.service
+
+[Service]
+Type=simple
+User=__RUN_USER__
+WorkingDirectory=__PROJECT_ROOT__
+ExecStart=__PROJECT_ROOT__/scripts/05_run_bot.sh __PROJECT_ROOT__
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

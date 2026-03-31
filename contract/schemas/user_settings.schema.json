@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UserSettings",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "user_id",
+    "reply_mode",
+    "tts_voice",
+    "language_code",
+    "updated_at"
+  ],
+  "properties": {
+    "user_id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "reply_mode": {
+      "type": "string",
+      "enum": [
+        "text",
+        "voice"
+      ]
+    },
+    "tts_voice": {
+      "type": "string",
+      "minLength": 1
+    },
+    "language_code": {
+      "type": "string",
+      "minLength": 2
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

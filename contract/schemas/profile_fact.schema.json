@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProfileFact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "user_id",
+    "fact_key",
+    "fact_value",
+    "confidence",
+    "updated_at"
+  ],
+  "properties": {
+    "user_id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "fact_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fact_value": {
+      "type": "string",
+      "minLength": 1
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "source_message_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
