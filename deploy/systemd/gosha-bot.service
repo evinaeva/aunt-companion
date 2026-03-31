@@ -7,9 +7,13 @@ Requires=gosha-llama.service
 Type=simple
 User=__RUN_USER__
 WorkingDirectory=__PROJECT_ROOT__
+EnvironmentFile=__PROJECT_ROOT__/.env
+Environment=PYTHONUNBUFFERED=1
 ExecStart=__PROJECT_ROOT__/scripts/05_run_bot.sh __PROJECT_ROOT__
 Restart=always
-RestartSec=3
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGINT
 
 [Install]
 WantedBy=multi-user.target

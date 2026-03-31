@@ -134,6 +134,7 @@ async def test_main_run_uses_initialize_database_signature_consistently(monkeypa
 
     db_path = tmp_path / "data" / "db" / "gosha.sqlite3"
     settings = SimpleNamespace(
+        environment="test",
         log_level="INFO",
         paths=SimpleNamespace(
             sqlite_path=db_path,

@@ -15,34 +15,25 @@ Single Ubuntu server, CPU-only.
 
 - project root: `/srv/gosha`
 - database: `/srv/gosha/data/db/gosha.sqlite3`
-- logs: `/srv/gosha/data/logs/`
+- logs: use `journalctl` for systemd services
 - LLM models: `/srv/gosha/data/models/llm/`
-- TTS voices: `/srv/gosha/data/models/tts/`
-- temp audio: `/srv/gosha/data/tmp/`
-- Hugging Face cache: `/srv/gosha/data/cache/huggingface/`
-
-## Ports
-
-- `8012` — llama.cpp
-- no public HTTP endpoint required for MVP
+- TTS voices: `/srv/gosha/data/models/tts/` (for future voice phase)
+- temp files: `/srv/gosha/data/tmp/`
 
 ## Services
 
 ### gosha-llama.service
-Starts local LLM server.
+Starts local llama.cpp server using `scripts/04_start_llama_server.sh`.
 
 ### gosha-bot.service
-Starts Telegram bot.
+Starts Telegram bot using `scripts/05_run_bot.sh`.
 
 ## Boot order
 
 1. `gosha-llama.service`
 2. `gosha-bot.service`
 
-## Operational constraints
+## Notes
 
-- keep context size moderate
-- keep assistant replies short
-- keep voice replies short
-- set SQLite WAL mode
-- do not run both services as root in production
+- Services use `EnvironmentFile=/srv/gosha/.env`.
+- Use non-root service user in production.

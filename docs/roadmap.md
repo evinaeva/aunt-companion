@@ -1,35 +1,30 @@
 # Gosha MVP — Roadmap
 
-## Phase 0 — Skeleton
-- create repo
-- create docs and contract
-- bootstrap Ubuntu host
-- build llama.cpp
-- download models
-- verify local inference
+## Phase 0 — Skeleton (done)
+- create repo and docs
+- bootstrap Ubuntu scripts
+- model download helpers
 
-## Phase 1 — Core chat MVP
-- Telegram bot
-- whitelist
+## Phase 1 — Text chat baseline (done)
+- Telegram bot polling
+- allowlist middleware
 - text replies
 - SQLite persistence
-- recent-memory retrieval
-- Russian system prompt
 
-## Phase 2 — Voice MVP
+## Phase 2 — Repo/ops hardening (current)
+- startup/shutdown logging polish
+- smoke-check scripts
+- deployment template sanity
+- focused tests for startup and fallback behavior
+
+## Next phases (not started)
+
+### Voice runtime
 - Telegram voice input
-- faster-whisper transcription
-- Piper voice output
-- per-user reply mode
+- transcription path
+- TTS output path
 
-## Phase 3 — Memory polish
-- profile fact extraction
-- rolling summary
-- memory commands like `/whoami` and `/memory`
-
-## Phase 4 — Hardening
-- tests
-- systemd
-- restart policy
-- backup script
-- log cleanup
+### Memory runtime
+- profile fact extraction/writes
+- rolling summary updates
+- memory commands

@@ -1,5 +1,8 @@
 # SPEC-001-Gosha-MVP
 
+> Status note (March 31, 2026): this document describes target MVP design milestones. The current runtime implementation in this repository is text-chat-first and does not yet enable full voice/memory execution flow.
+
+
 ## Background
 
 Gosha is a self-hosted Telegram companion for a very small group of trusted users.  
