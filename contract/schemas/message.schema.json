@@ -6,7 +6,7 @@
   "required": [
     "id",
     "user_id",
-    "role",
+    "direction",
     "input_type",
     "text",
     "created_at"
@@ -20,12 +20,11 @@
       "type": "integer",
       "minimum": 1
     },
-    "role": {
+    "direction": {
       "type": "string",
       "enum": [
-        "user",
-        "assistant",
-        "system"
+        "incoming",
+        "outgoing"
       ]
     },
     "input_type": {

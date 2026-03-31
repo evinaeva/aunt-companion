@@ -84,7 +84,7 @@ Required tables:
 - `user_settings`
 - `messages`
 - `profile_facts`
-- `conversation_summaries`
+- `daily_summaries`
 
 ### SQLite rules
 - enable WAL mode

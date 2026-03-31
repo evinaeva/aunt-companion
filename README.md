@@ -10,3 +10,17 @@ Included:
 - `deploy/systemd/` — systemd service templates
 - `.env.example` — environment template
 - `prompts/system_prompt_ru.txt` — starter system prompt
+
+## Run (Phase 1 skeleton)
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -e '.[dev]'
+cp .env.example .env
+pytest
+python -m app.main
+```
+
+Phase 1 currently initializes configuration and logging only.

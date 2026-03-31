@@ -70,7 +70,7 @@ Keep extraction simple:
 ### messages
 - id
 - user_id
-- role (`user`, `assistant`, `system`)
+- direction (`incoming`, `outgoing`)
 - input_type (`text`, `voice`, `command`)
 - text
 - telegram_message_id
@@ -85,7 +85,7 @@ Keep extraction simple:
 - source_message_id
 - updated_at
 
-### conversation_summaries
+### daily_summaries
 - id
 - user_id
 - summary_text

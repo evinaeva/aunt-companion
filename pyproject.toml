@@ -2,7 +2,7 @@
 name = "gosha"
 version = "0.1.0"
 description = "Minimal self-hosted Telegram companion MVP"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
   "aiogram==3.26.0",
   "aiosqlite>=0.20,<1.0",
@@ -25,3 +25,9 @@ dev = [
 [build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
