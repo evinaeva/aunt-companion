@@ -1,5 +1,8 @@
 # Gosha MVP — Memory Model
 
+> Status note (March 31, 2026): this document describes target MVP design milestones. The current runtime implementation in this repository is text-chat-first and does not yet enable full voice/memory execution flow.
+
+
 ## Goal
 
 Provide just enough memory so the bot feels personal, without adding complex retrieval infrastructure.

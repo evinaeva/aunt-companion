@@ -5,46 +5,35 @@
 ### LLM server
 ```bash
 cd /srv/gosha
-./scripts/04_start_llama_server.sh
+./scripts/04_start_llama_server.sh /srv/gosha
 ```
 
 ### Bot
 ```bash
 cd /srv/gosha
-./scripts/05_run_bot.sh
+./scripts/05_run_bot.sh /srv/gosha
+```
+
+## Basic smoke check
+
+```bash
+cd /srv/gosha
+./scripts/07_smoke_check.sh /srv/gosha
 ```
 
 ## Logs
 
-Recommended files:
-- `/srv/gosha/data/logs/llama.log`
-- `/srv/gosha/data/logs/bot.log`
-
-When using systemd:
+With systemd:
 ```bash
 journalctl -u gosha-llama -f
 journalctl -u gosha-bot -f
 ```
 
-## SQLite maintenance
+## SQLite checks
 
-Use:
-- WAL mode
-- busy timeout
-- one short write transaction per operation
-
-Basic checks:
 ```bash
 sqlite3 /srv/gosha/data/db/gosha.sqlite3 "PRAGMA journal_mode;"
 sqlite3 /srv/gosha/data/db/gosha.sqlite3 "PRAGMA integrity_check;"
-```
-
-## Backup
-
-MVP backup can stay very simple:
-```bash
-mkdir -p /srv/gosha/data/backups
-sqlite3 /srv/gosha/data/db/gosha.sqlite3 ".backup '/srv/gosha/data/backups/gosha-$(date +%F).sqlite3'"
 ```
 
 ## Common failures
@@ -53,23 +42,10 @@ sqlite3 /srv/gosha/data/db/gosha.sqlite3 ".backup '/srv/gosha/data/backups/gosha
 Check:
 - bot token
 - allowed Telegram IDs
-- polling loop logs
+- `gosha-bot` service logs
 
-### 2. Voice transcription fails
+### 2. LLM not reachable
 Check:
-- `ffmpeg`
-- faster-whisper model cache
-- temp directory permissions
-
-### 3. TTS fails
-Check:
-- Piper voice `.onnx` and `.onnx.json` exist
-- selected voice path in `.env`
-- write permissions for temp/output files
-
-### 4. LLM is too slow
-Mitigations:
-- switch from `Q8_0` to `Q5_K_M`
-- reduce context
-- reduce max tokens
-- shorten system prompt
+- `gosha-llama` service status/logs
+- `LLM_BASE_URL` in `.env`
+- local port/firewall policy
