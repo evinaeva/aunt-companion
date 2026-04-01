@@ -6,7 +6,7 @@ import tomllib
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -34,22 +34,26 @@ class STTSettings(BaseModel):
     """Speech-to-text settings."""
 
     provider: str = "faster_whisper"
-    model_size: str
+    model: str
     compute_type: str
+    language: str = "ru"
 
 
 class TTSSettings(BaseModel):
     """Text-to-speech settings."""
 
-    provider: str = "piper"
-    piper_voice_path: Path
+    provider: str = "google_cloud"
+    language_code: str = "ru-RU"
+    voice_name: str = ""
+    voice_gender: str = "FEMALE"
+    audio_encoding: str = "OGG_OPUS"
 
 
 class VoiceSettings(BaseModel):
     """Voice runtime feature toggles."""
 
     stt_provider: str = "faster_whisper"
-    tts_provider: str = "piper"
+    tts_provider: str = "google_cloud"
     voice_enabled_default: bool = False
 
 
@@ -84,12 +88,16 @@ class Settings(BaseSettings):
     llm_provider: str = Field(default="llama_cpp", alias="LLM_PROVIDER")
     llm_api_key: str = Field(default="", alias="LLM_API_KEY")
 
-    stt_model_size: str = Field(alias="STT_MODEL_SIZE")
+    stt_model: str = Field(validation_alias=AliasChoices("STT_MODEL", "STT_MODEL_SIZE"))
     stt_compute_type: str = Field(alias="STT_COMPUTE_TYPE")
+    stt_language: str = Field(default="ru", alias="STT_LANGUAGE")
     stt_provider: str = Field(default="faster_whisper", alias="STT_PROVIDER")
 
-    piper_voice_path: Path = Field(alias="PIPER_VOICE_PATH")
-    tts_provider: str = Field(default="piper", alias="TTS_PROVIDER")
+    tts_provider: str = Field(default="google_cloud", alias="TTS_PROVIDER")
+    tts_language_code: str = Field(default="ru-RU", alias="TTS_LANGUAGE_CODE")
+    tts_voice_name: str = Field(default="", alias="TTS_VOICE_NAME")
+    tts_voice_gender: str = Field(default="FEMALE", alias="TTS_VOICE_GENDER")
+    tts_audio_encoding: str = Field(default="OGG_OPUS", alias="TTS_AUDIO_ENCODING")
     voice_enabled_default: bool = Field(default=False, alias="VOICE_ENABLED_DEFAULT")
 
     data_dir: Path = Field(alias="DATA_DIR")
@@ -155,14 +163,25 @@ class Settings(BaseSettings):
         """Structured STT settings."""
         providers = _load_voice_config(LLM_LOCAL_CONFIG_PATH)
         provider = providers.get("stt_provider", self.stt_provider)
-        return STTSettings(provider=provider, model_size=self.stt_model_size, compute_type=self.stt_compute_type)
+        return STTSettings(
+            provider=provider,
+            model=str(providers.get("stt_model", self.stt_model)),
+            compute_type=str(providers.get("stt_compute_type", self.stt_compute_type)),
+            language=str(providers.get("stt_language", self.stt_language)),
+        )
 
     @property
     def tts(self) -> TTSSettings:
         """Structured TTS settings."""
         providers = _load_voice_config(LLM_LOCAL_CONFIG_PATH)
         provider = providers.get("tts_provider", self.tts_provider)
-        return TTSSettings(provider=provider, piper_voice_path=self.piper_voice_path)
+        return TTSSettings(
+            provider=provider,
+            language_code=str(providers.get("tts_language_code", self.tts_language_code)),
+            voice_name=str(providers.get("tts_voice_name", self.tts_voice_name)),
+            voice_gender=str(providers.get("tts_voice_gender", self.tts_voice_gender)),
+            audio_encoding=str(providers.get("tts_audio_encoding", self.tts_audio_encoding)),
+        )
 
     @property
     def voice(self) -> VoiceSettings:
@@ -227,7 +246,17 @@ def _load_voice_config(path: Path) -> dict[str, str | bool]:
         raise ValueError("config/llm.local.toml [voice] must be a table")
 
     resolved: dict[str, str | bool] = {}
-    for key in ("stt_provider", "tts_provider"):
+    for key in (
+        "stt_provider",
+        "tts_provider",
+        "stt_model",
+        "stt_compute_type",
+        "stt_language",
+        "tts_language_code",
+        "tts_voice_name",
+        "tts_voice_gender",
+        "tts_audio_encoding",
+    ):
         value = voice.get(key)
         if value is None:
             continue

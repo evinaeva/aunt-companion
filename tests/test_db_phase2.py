@@ -79,14 +79,9 @@ async def test_repository_crud_basics(tmp_path: Path) -> None:
 
         user = await users.get_or_create_user(telegram_user_id=111, display_name="Anna", is_admin=False)
 
-        await settings.upsert_settings(
-            user_id=user.id,
-            reply_mode="text",
-            tts_voice="ru_RU-irina-medium",
-            language_code="ru",
-            voice_enabled=False,
-        )
-        saved_settings = await settings.get_by_user_id(user.id)
+        await settings.get_or_create_user_settings(user.id)
+        await settings.set_voice_enabled(user.id, enabled=False)
+        saved_settings = await settings.get_or_create_user_settings(user.id)
 
         convo = await conversations.create_conversation(user_id=user.id, title="чат")
         latest_convo = await conversations.get_latest_for_user(user.id)
@@ -122,7 +117,6 @@ async def test_repository_crud_basics(tmp_path: Path) -> None:
         await conn.close()
 
     assert saved_settings is not None
-    assert saved_settings.reply_mode == "text"
     assert saved_settings.voice_enabled is False
     assert latest_convo is not None
     assert latest_convo.id == convo.id
@@ -175,3 +169,90 @@ async def test_strict_cross_user_isolation_queries(tmp_path: Path) -> None:
     assert summary_a.user_id == user_a.id
     assert summary_a.summary_text == "A day"
     assert msg_a.user_id == user_a.id
+
+
+@pytest.mark.asyncio
+async def test_user_settings_voice_toggle_roundtrip(tmp_path: Path) -> None:
+    db_path = tmp_path / "runtime" / "data" / "db" / "gosha.sqlite3"
+    await initialize_database(
+        db_path,
+        data_dir=tmp_path / "runtime" / "data",
+        tmp_dir=tmp_path / "runtime" / "tmp",
+        log_dir=tmp_path / "runtime" / "logs",
+    )
+
+    conn = await connect(db_path)
+    try:
+        users = UsersRepository(conn)
+        settings = UserSettingsRepository(conn)
+        user = await users.get_or_create_user(telegram_user_id=555, display_name="V", is_admin=False)
+
+        assert await settings.is_voice_enabled(user.id) is False
+        await settings.set_voice_enabled(user.id, enabled=True)
+        assert await settings.is_voice_enabled(user.id) is True
+        await settings.set_voice_enabled(user.id, enabled=False)
+        assert await settings.is_voice_enabled(user.id) is False
+    finally:
+        await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_initialize_database_migrates_legacy_user_settings_schema(tmp_path: Path) -> None:
+    db_path = tmp_path / "runtime" / "data" / "db" / "gosha.sqlite3"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    conn = await connect(db_path)
+    try:
+        await conn.executescript(
+            """
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                telegram_user_id INTEGER NOT NULL UNIQUE,
+                display_name TEXT,
+                is_admin INTEGER NOT NULL DEFAULT 0,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE user_settings (
+                user_id INTEGER PRIMARY KEY,
+                reply_mode TEXT NOT NULL DEFAULT 'text' CHECK (reply_mode IN ('text', 'voice')),
+                voice_enabled INTEGER NOT NULL DEFAULT 0 CHECK (voice_enabled IN (0, 1)),
+                tts_voice TEXT NOT NULL,
+                language_code TEXT NOT NULL DEFAULT 'ru',
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            INSERT INTO users (id, telegram_user_id, display_name, is_admin, is_active)
+            VALUES (1, 1111, 'legacy', 0, 1);
+            INSERT INTO user_settings (user_id, reply_mode, voice_enabled, tts_voice, language_code, updated_at)
+            VALUES (1, 'voice', 1, 'legacy-voice', 'ru', '2026-03-31 10:00:00');
+            """
+        )
+        await conn.commit()
+    finally:
+        await conn.close()
+
+    await initialize_database(
+        db_path=db_path,
+        data_dir=tmp_path / "runtime" / "data",
+        tmp_dir=tmp_path / "runtime" / "tmp",
+        log_dir=tmp_path / "runtime" / "logs",
+    )
+
+    conn = await connect(db_path)
+    try:
+        table_info = await conn.execute("PRAGMA table_info(user_settings)")
+        columns = [row["name"] for row in await table_info.fetchall()]
+
+        rows = await conn.execute("SELECT user_id, voice_enabled, updated_at FROM user_settings WHERE user_id = 1")
+        saved = await rows.fetchone()
+    finally:
+        await conn.close()
+
+    assert columns == ["user_id", "voice_enabled", "updated_at"]
+    assert saved is not None
+    assert saved["user_id"] == 1
+    assert saved["voice_enabled"] == 1
+    assert saved["updated_at"] == "2026-03-31 10:00:00"

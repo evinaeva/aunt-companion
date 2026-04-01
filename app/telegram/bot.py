@@ -28,7 +28,7 @@ async def run_polling(settings: Settings, db_conn: aiosqlite.Connection) -> None
 
     llm_client = build_primary_chat_client(settings)
     stt_adapter = build_stt_adapter(settings.stt)
-    tts_adapter = build_tts_adapter(settings.tts, output_dir=settings.paths.tmp_dir)
+    tts_adapter = build_tts_adapter(settings.tts)
     system_prompt = load_system_prompt_ru()
 
     logger.info(
@@ -50,7 +50,6 @@ async def run_polling(settings: Settings, db_conn: aiosqlite.Connection) -> None
             tts_adapter=tts_adapter,
             system_prompt=system_prompt,
             recent_context_messages=settings.recent_context_messages,
-            default_tts_voice=settings.tts.piper_voice_path.stem,
             tmp_dir=settings.paths.tmp_dir,
         )
     finally:
