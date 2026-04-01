@@ -4,7 +4,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from unittest.mock import ANY
 
 
 @pytest.mark.asyncio
@@ -166,6 +165,17 @@ async def test_run_polling_wires_dispatcher_and_client(monkeypatch: pytest.Monke
     settings = SimpleNamespace(
         telegram=SimpleNamespace(bot_token="token", allowed_user_ids=[1, 2]),
         llm=SimpleNamespace(provider="llama_cpp", base_url="http://127.0.0.1:8012", model="Qwen"),
+        stt=SimpleNamespace(provider="faster_whisper", model="small", compute_type="int8", language="ru"),
+        tts=SimpleNamespace(
+            provider="google_cloud",
+            language_code="ru-RU",
+            voice_name="",
+            voice_gender="FEMALE",
+            audio_encoding="OGG_OPUS",
+        ),
+        voice=SimpleNamespace(stt_provider="faster_whisper", tts_provider="google_cloud"),
+        recent_context_messages=4,
+        paths=SimpleNamespace(tmp_dir=Path("/tmp")),
     )
 
     monkeypatch.setattr(telegram_bot, "Bot", FakeBot)
@@ -177,7 +187,10 @@ async def test_run_polling_wires_dispatcher_and_client(monkeypatch: pytest.Monke
     assert call_log["token"] == "token"
     assert call_log["llm_base_url"] == "http://127.0.0.1:8012"
     assert call_log["llm_model"] == "Qwen"
-    assert call_log["polling_kwargs"] == {"db_conn": "db_conn", "llm_client": ANY}
+    assert call_log["polling_kwargs"]["db_conn"] == "db_conn"
+    assert call_log["polling_kwargs"]["llm_client"] is not None
+    assert call_log["polling_kwargs"]["stt_adapter"] is not None
+    assert call_log["polling_kwargs"]["tts_adapter"] is not None
     assert call_log["bot_closed"] is True
 
 
@@ -189,9 +202,9 @@ def test_settings_paths_are_loaded_for_server_execution(monkeypatch: pytest.Monk
     monkeypatch.setenv("ADMIN_TELEGRAM_USER_ID", "1")
     monkeypatch.setenv("LLM_BASE_URL", "http://127.0.0.1:8012")
     monkeypatch.setenv("LLM_MODEL", "Qwen")
-    monkeypatch.setenv("STT_MODEL_SIZE", "small")
+    monkeypatch.setenv("STT_MODEL", "small")
     monkeypatch.setenv("STT_COMPUTE_TYPE", "int8")
-    monkeypatch.setenv("PIPER_VOICE_PATH", str(tmp_path / "data" / "models" / "tts" / "voice.onnx"))
+    monkeypatch.setenv("TTS_PROVIDER", "google_cloud")
     monkeypatch.setenv("DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("TMP_DIR", str(tmp_path / "data" / "tmp"))
     monkeypatch.setenv("LOG_DIR", str(tmp_path / "data" / "logs"))

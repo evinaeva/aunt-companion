@@ -20,7 +20,6 @@ This repository currently provides:
 ## Not implemented yet
 
 - Memory-writing behavior used in reply flow
-- Voice/STT/TTS runtime path in production bot flow
 - FastAPI/web services, tools, books, web search, or other feature expansions
 
 ## Quick local run

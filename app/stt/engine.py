@@ -14,10 +14,11 @@ class STTAdapter(Protocol):
         """Transcribe WAV file into plain text."""
 
 
-class FasterWhisperAdapter:
-    def __init__(self, *, model_size: str, compute_type: str) -> None:
-        self.model_size = model_size
+class FasterWhisperSTTAdapter:
+    def __init__(self, *, model: str, compute_type: str, language: str) -> None:
+        self.model = model
         self.compute_type = compute_type
+        self.language = language
         self._model = None
 
     async def transcribe(self, file_path: str) -> str:
@@ -25,11 +26,9 @@ class FasterWhisperAdapter:
             if self._model is None:
                 from faster_whisper import WhisperModel
 
-                self._model = WhisperModel(self.model_size, compute_type=self.compute_type)
-            segments, _ = self._model.transcribe(file_path)
+                self._model = WhisperModel(self.model, compute_type=self.compute_type)
+            segments, _ = self._model.transcribe(file_path, language=self.language)
             text = " ".join(segment.text.strip() for segment in segments).strip()
-            if not text:
-                raise ValueError("Empty transcript")
             return text
 
         return await asyncio.to_thread(_run)
@@ -42,5 +41,5 @@ class UnavailableSTTAdapter:
 
 def build_stt_adapter(settings: STTSettings) -> STTAdapter:
     if settings.provider == "faster_whisper":
-        return FasterWhisperAdapter(model_size=settings.model_size, compute_type=settings.compute_type)
+        return FasterWhisperSTTAdapter(model=settings.model, compute_type=settings.compute_type, language=settings.language)
     return UnavailableSTTAdapter()

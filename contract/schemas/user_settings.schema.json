@@ -5,9 +5,7 @@
   "additionalProperties": false,
   "required": [
     "user_id",
-    "reply_mode",
-    "tts_voice",
-    "language_code",
+    "voice_enabled",
     "updated_at"
   ],
   "properties": {
@@ -15,20 +13,8 @@
       "type": "integer",
       "minimum": 1
     },
-    "reply_mode": {
-      "type": "string",
-      "enum": [
-        "text",
-        "voice"
-      ]
-    },
-    "tts_voice": {
-      "type": "string",
-      "minLength": 1
-    },
-    "language_code": {
-      "type": "string",
-      "minLength": 2
+    "voice_enabled": {
+      "type": "boolean"
     },
     "updated_at": {
       "type": "string",

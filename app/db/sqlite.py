@@ -24,10 +24,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS user_settings (
     user_id INTEGER PRIMARY KEY,
-    reply_mode TEXT NOT NULL DEFAULT 'text' CHECK (reply_mode IN ('text', 'voice')),
     voice_enabled INTEGER NOT NULL DEFAULT 0 CHECK (voice_enabled IN (0, 1)),
-    tts_voice TEXT NOT NULL,
-    language_code TEXT NOT NULL DEFAULT 'ru',
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -86,6 +83,8 @@ CREATE INDEX IF NOT EXISTS idx_daily_summaries_user_date
 ON daily_summaries(user_id, summary_date DESC);
 """
 
+USER_SETTINGS_TARGET_COLUMNS = {"user_id", "voice_enabled", "updated_at"}
+
 
 async def connect(db_path: Path) -> aiosqlite.Connection:
     """Open SQLite connection with required pragmas."""
@@ -109,18 +108,58 @@ async def initialize_database(
     conn = await connect(db_path)
     try:
         await conn.executescript(SCHEMA_SQL)
-        try:
-            await conn.execute(
-                """
-                ALTER TABLE user_settings
-                ADD COLUMN voice_enabled INTEGER NOT NULL DEFAULT 0 CHECK (voice_enabled IN (0, 1))
-                """
-            )
-            logger.info("SQLite migration: user_settings.voice_enabled added")
-        except aiosqlite.OperationalError as exc:
-            if "duplicate column name: voice_enabled" not in str(exc):
-                raise
-            logger.info("SQLite migration: user_settings.voice_enabled already exists")
+        await _migrate_user_settings_schema(conn)
         await conn.commit()
     finally:
         await conn.close()
+
+
+async def _migrate_user_settings_schema(conn: aiosqlite.Connection) -> None:
+    cursor = await conn.execute("PRAGMA table_info(user_settings)")
+    columns = [row["name"] for row in await cursor.fetchall()]
+    if not columns:
+        return
+
+    if set(columns) == USER_SETTINGS_TARGET_COLUMNS:
+        return
+
+    logger.info("SQLite migration: rebuilding user_settings table", extra={"existing_columns": columns})
+    has_voice_enabled = "voice_enabled" in columns
+    has_reply_mode = "reply_mode" in columns
+    has_updated_at = "updated_at" in columns
+
+    voice_expr = "0"
+    if has_voice_enabled and has_reply_mode:
+        voice_expr = (
+            "CASE "
+            "WHEN voice_enabled IN (0, 1) THEN voice_enabled "
+            "WHEN reply_mode = 'voice' THEN 1 "
+            "ELSE 0 END"
+        )
+    elif has_voice_enabled:
+        voice_expr = "CASE WHEN voice_enabled IN (0, 1) THEN voice_enabled ELSE 0 END"
+    elif has_reply_mode:
+        voice_expr = "CASE WHEN reply_mode = 'voice' THEN 1 ELSE 0 END"
+
+    updated_expr = "updated_at" if has_updated_at else "CURRENT_TIMESTAMP"
+
+    await conn.execute("ALTER TABLE user_settings RENAME TO user_settings_legacy")
+    await conn.execute(
+        """
+        CREATE TABLE user_settings (
+            user_id INTEGER PRIMARY KEY,
+            voice_enabled INTEGER NOT NULL DEFAULT 0 CHECK (voice_enabled IN (0, 1)),
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+    await conn.execute(
+        f"""
+        INSERT INTO user_settings (user_id, voice_enabled, updated_at)
+        SELECT user_id, {voice_expr}, COALESCE({updated_expr}, CURRENT_TIMESTAMP)
+        FROM user_settings_legacy
+        """
+    )
+    await conn.execute("DROP TABLE user_settings_legacy")
+    logger.info("SQLite migration: user_settings table rebuilt")

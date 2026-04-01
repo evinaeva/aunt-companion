@@ -3,74 +3,68 @@
 from __future__ import annotations
 
 import asyncio
-import shutil
-from pathlib import Path
 from typing import Protocol
-from uuid import uuid4
 
 from app.config import TTSSettings
 
 
 class TTSAdapter(Protocol):
-    async def synthesize(self, text: str) -> str:
-        """Synthesize TTS output and return path to OGG/OGA voice file."""
+    async def synthesize(self, text: str) -> bytes:
+        """Synthesize TTS output and return OGG/OGA bytes."""
 
 
-class PiperTTSAdapter:
-    def __init__(self, *, voice_path: Path, output_dir: Path) -> None:
-        self.voice_path = voice_path
-        self.output_dir = output_dir
+class GoogleCloudTTSAdapter:
+    def __init__(
+        self,
+        *,
+        language_code: str,
+        voice_name: str,
+        voice_gender: str,
+        audio_encoding: str,
+    ) -> None:
+        self.language_code = language_code
+        self.voice_name = voice_name
+        self.voice_gender = voice_gender
+        self.audio_encoding = audio_encoding
 
-    async def synthesize(self, text: str) -> str:
-        if shutil.which("piper") is None:
-            raise RuntimeError("piper binary not found")
-        if shutil.which("ffmpeg") is None:
-            raise RuntimeError("ffmpeg binary not found")
+    async def synthesize(self, text: str) -> bytes:
+        def _run() -> bytes:
+            from google.cloud import texttospeech
 
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        base_name = f"gosha-tts-{uuid4().hex}"
-        wav_path = self.output_dir / f"{base_name}.wav"
-        ogg_path = self.output_dir / f"{base_name}.ogg"
+            client = texttospeech.TextToSpeechClient()
+            request_input = texttospeech.SynthesisInput(text=text)
 
-        proc = await asyncio.create_subprocess_exec(
-            "piper",
-            "--model",
-            str(self.voice_path),
-            "--output_file",
-            str(wav_path),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            stdin=asyncio.subprocess.PIPE,
-        )
-        _, stderr = await proc.communicate(input=text.encode("utf-8"))
-        if proc.returncode != 0:
-            raise RuntimeError(f"Piper failed: {stderr.decode('utf-8', errors='ignore')}")
+            if self.voice_name:
+                voice = texttospeech.VoiceSelectionParams(
+                    language_code=self.language_code,
+                    name=self.voice_name,
+                )
+            else:
+                voice = texttospeech.VoiceSelectionParams(
+                    language_code=self.language_code,
+                    ssml_gender=texttospeech.SsmlVoiceGender[self.voice_gender.upper()],
+                )
 
-        ffmpeg = await asyncio.create_subprocess_exec(
-            "ffmpeg",
-            "-y",
-            "-i",
-            str(wav_path),
-            "-c:a",
-            "libopus",
-            "-b:a",
-            "24k",
-            str(ogg_path),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _, ffmpeg_err = await ffmpeg.communicate()
-        if ffmpeg.returncode != 0:
-            raise RuntimeError(f"ffmpeg failed: {ffmpeg_err.decode('utf-8', errors='ignore')}")
-        return str(ogg_path)
+            audio_config = texttospeech.AudioConfig(
+                audio_encoding=texttospeech.AudioEncoding[self.audio_encoding.upper()],
+            )
+            response = client.synthesize_speech(input=request_input, voice=voice, audio_config=audio_config)
+            return bytes(response.audio_content)
+
+        return await asyncio.to_thread(_run)
 
 
 class UnavailableTTSAdapter:
-    async def synthesize(self, text: str) -> str:
+    async def synthesize(self, text: str) -> bytes:
         raise RuntimeError("TTS unavailable")
 
 
-def build_tts_adapter(settings: TTSSettings, *, output_dir: Path) -> TTSAdapter:
-    if settings.provider == "piper":
-        return PiperTTSAdapter(voice_path=settings.piper_voice_path, output_dir=output_dir)
+def build_tts_adapter(settings: TTSSettings) -> TTSAdapter:
+    if settings.provider == "google_cloud":
+        return GoogleCloudTTSAdapter(
+            language_code=settings.language_code,
+            voice_name=settings.voice_name,
+            voice_gender=settings.voice_gender,
+            audio_encoding=settings.audio_encoding,
+        )
     return UnavailableTTSAdapter()
