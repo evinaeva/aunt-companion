@@ -13,7 +13,10 @@ def build_primary_chat_client(settings: Settings) -> ChatClient:
     llm = settings.llm
     if llm.provider == "gemini":
         if not llm.api_key:
-            raise ValueError("Gemini provider requires api_key")
+            raise ValueError(
+                "Gemini provider requires api_key (set [primary].api_key in config/llm.local.toml "
+                "or LLM_API_KEY in .env when TOML is absent)"
+            )
         return GeminiClient(api_key=llm.api_key, model=llm.model, base_url=llm.base_url)
 
     if llm.provider == "llama_cpp":

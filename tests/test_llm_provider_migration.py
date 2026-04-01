@@ -60,6 +60,28 @@ def test_settings_falls_back_to_env_when_local_toml_missing(tmp_path: Path, monk
     assert settings.llm.model == "Qwen3-4B-Q5_K_M"
 
 
+def test_settings_rejects_placeholder_gemini_api_key_in_local_toml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    set_base_env(monkeypatch)
+    cfg_path = tmp_path / "llm.local.toml"
+    cfg_path.write_text(
+        """
+[primary]
+provider = "gemini"
+model = "gemini-2.5-flash-lite"
+base_url = "https://generativelanguage.googleapis.com"
+api_key = "YOUR_GEMINI_API_KEY"
+""".strip()
+    )
+    monkeypatch.setattr(settings_mod, "LLM_LOCAL_CONFIG_PATH", cfg_path)
+
+    settings = Settings()
+
+    with pytest.raises(ValueError, match="must be set to a real Gemini API key"):
+        _ = settings.llm
+
+
 def test_factory_selects_primary_provider(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     set_base_env(monkeypatch)
     cfg_path = tmp_path / "llm.local.toml"

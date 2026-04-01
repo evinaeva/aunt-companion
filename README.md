@@ -57,5 +57,7 @@ See `docs/server-quickstart.md` and `docs/operations.md` for server operations.
 ## LLM configuration
 
 Preferred runtime config is `config/llm.local.toml` (copy from `config/llm.example.toml`). Telegram chat always uses `[primary]`.
-Use Gemini in `[primary]` (`gemini-2.5-flash-lite`) and keep local llama.cpp in `[secondary]` for optional local tasks.
+Use Gemini in `[primary]` (`gemini-2.5-flash-lite`) and keep local llama.cpp in `[secondary]` for optional/manual use.
+There is currently no automatic runtime failover from `[primary]` to `[secondary]`.
 If `config/llm.local.toml` is missing, app falls back to `.env` (`LLM_PROVIDER`, `LLM_MODEL`, `LLM_BASE_URL`, `LLM_API_KEY`).
+If `config/llm.local.toml` exists with Gemini placeholder key material, startup fails fast with a clear error.
