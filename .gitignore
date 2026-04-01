@@ -1,6 +1,10 @@
 .env
 .venv/
+vendor/
+data/
+config/llm.local.toml
 __pycache__/
+**/__pycache__/
 *.pyc
 .pytest_cache/
-config/llm.local.toml
+.ruff_cache/

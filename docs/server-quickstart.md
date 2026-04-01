@@ -27,6 +27,12 @@ Fill in:
 - `.env`: `TELEGRAM_BOT_TOKEN`, `ALLOWED_TELEGRAM_USER_IDS`, `ADMIN_TELEGRAM_USER_ID`
 - `config/llm.local.toml` `[primary].api_key` for Gemini model `gemini-2.5-flash-lite`
 
+Notes:
+- Telegram chat uses `[primary]` only.
+- `[secondary]` is optional/manual and not used for automatic failover.
+- If `config/llm.local.toml` is missing, app uses `.env` LLM values.
+- If `config/llm.local.toml` exists but keeps `YOUR_GEMINI_API_KEY`, startup fails fast.
+
 ## 5. Smoke check
 ```bash
 ./scripts/07_smoke_check.sh /srv/gosha

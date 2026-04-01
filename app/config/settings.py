@@ -168,6 +168,12 @@ def _load_primary_llm_config(path: Path) -> dict[str, str] | None:
             raise ValueError(f"Invalid [primary].{key} value in config/llm.local.toml")
         resolved[key] = value.strip()
 
+    if resolved["provider"] == "gemini" and resolved["api_key"] in {"", "YOUR_GEMINI_API_KEY"}:
+        raise ValueError(
+            "config/llm.local.toml [primary].api_key must be set to a real Gemini API key "
+            "or remove config/llm.local.toml to use .env fallback"
+        )
+
     return resolved
 
 
