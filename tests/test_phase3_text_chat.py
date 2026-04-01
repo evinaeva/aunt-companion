@@ -544,5 +544,6 @@ async def test_voice_handler_falls_back_to_text_when_tts_fails(tmp_path: Path, m
 
         msg.answer.assert_awaited_once_with("текстовый ответ")
         msg.answer_voice.assert_not_called()
+        tts_adapter.synthesize.assert_awaited_once_with("текстовый ответ")
     finally:
         await conn.close()

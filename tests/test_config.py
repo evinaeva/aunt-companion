@@ -77,3 +77,39 @@ def test_settings_recent_context_messages_rejects_out_of_range(monkeypatch: pyte
 
     with pytest.raises(ValidationError, match="RECENT_CONTEXT_MESSAGES must be between 2 and 20"):
         Settings()
+
+
+def test_settings_rejects_invalid_tts_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    set_base_env(monkeypatch)
+    monkeypatch.setenv("ALLOWED_TELEGRAM_USER_IDS", "1,2")
+    monkeypatch.setenv("TTS_PROVIDER", "piper")
+
+    with pytest.raises(ValidationError, match="TTS_PROVIDER must be google_cloud"):
+        Settings()
+
+
+def test_settings_rejects_invalid_tts_audio_encoding(monkeypatch: pytest.MonkeyPatch) -> None:
+    set_base_env(monkeypatch)
+    monkeypatch.setenv("ALLOWED_TELEGRAM_USER_IDS", "1,2")
+    monkeypatch.setenv("TTS_AUDIO_ENCODING", "WAV")
+
+    with pytest.raises(ValidationError, match="TTS_AUDIO_ENCODING must be one of"):
+        Settings()
+
+
+def test_settings_rejects_invalid_tts_voice_gender(monkeypatch: pytest.MonkeyPatch) -> None:
+    set_base_env(monkeypatch)
+    monkeypatch.setenv("ALLOWED_TELEGRAM_USER_IDS", "1,2")
+    monkeypatch.setenv("TTS_VOICE_GENDER", "ROBOT")
+
+    with pytest.raises(ValidationError, match="TTS_VOICE_GENDER must be one of"):
+        Settings()
+
+
+def test_settings_rejects_non_positive_tts_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    set_base_env(monkeypatch)
+    monkeypatch.setenv("ALLOWED_TELEGRAM_USER_IDS", "1,2")
+    monkeypatch.setenv("TTS_TIMEOUT_SECONDS", "0")
+
+    with pytest.raises(ValidationError, match="TTS_TIMEOUT_SECONDS must be > 0"):
+        Settings()
