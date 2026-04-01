@@ -6,6 +6,8 @@ import tomllib
 from functools import lru_cache
 from pathlib import Path
 
+from typing import Literal
+
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -42,11 +44,12 @@ class STTSettings(BaseModel):
 class TTSSettings(BaseModel):
     """Text-to-speech settings."""
 
-    provider: str = "google_cloud"
+    provider: Literal["google_cloud"] = "google_cloud"
     language_code: str = "ru-RU"
     voice_name: str = ""
-    voice_gender: str = "FEMALE"
-    audio_encoding: str = "OGG_OPUS"
+    voice_gender: Literal["SSML_VOICE_GENDER_UNSPECIFIED", "MALE", "FEMALE", "NEUTRAL"] = "FEMALE"
+    audio_encoding: Literal["LINEAR16", "MP3", "OGG_OPUS", "MULAW", "ALAW"] = "OGG_OPUS"
+    timeout_seconds: float = 10.0
 
 
 class VoiceSettings(BaseModel):
@@ -98,6 +101,7 @@ class Settings(BaseSettings):
     tts_voice_name: str = Field(default="", alias="TTS_VOICE_NAME")
     tts_voice_gender: str = Field(default="FEMALE", alias="TTS_VOICE_GENDER")
     tts_audio_encoding: str = Field(default="OGG_OPUS", alias="TTS_AUDIO_ENCODING")
+    tts_timeout_seconds: float = Field(default=10.0, alias="TTS_TIMEOUT_SECONDS")
     voice_enabled_default: bool = Field(default=False, alias="VOICE_ENABLED_DEFAULT")
 
     data_dir: Path = Field(alias="DATA_DIR")
@@ -129,6 +133,40 @@ class Settings(BaseSettings):
                 raise ValueError(f"Invalid Telegram user id in ALLOWED_TELEGRAM_USER_IDS: {token}") from exc
 
         return ",".join(str(item) for item in parsed_ids)
+
+
+    @field_validator("tts_provider")
+    @classmethod
+    def validate_tts_provider(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized != "google_cloud":
+            raise ValueError("TTS_PROVIDER must be google_cloud")
+        return normalized
+
+    @field_validator("tts_voice_gender")
+    @classmethod
+    def validate_tts_voice_gender(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        allowed = {"SSML_VOICE_GENDER_UNSPECIFIED", "MALE", "FEMALE", "NEUTRAL"}
+        if normalized not in allowed:
+            raise ValueError("TTS_VOICE_GENDER must be one of: SSML_VOICE_GENDER_UNSPECIFIED, MALE, FEMALE, NEUTRAL")
+        return normalized
+
+    @field_validator("tts_audio_encoding")
+    @classmethod
+    def validate_tts_audio_encoding(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        allowed = {"LINEAR16", "MP3", "OGG_OPUS", "MULAW", "ALAW"}
+        if normalized not in allowed:
+            raise ValueError("TTS_AUDIO_ENCODING must be one of: LINEAR16, MP3, OGG_OPUS, MULAW, ALAW")
+        return normalized
+
+    @field_validator("tts_timeout_seconds")
+    @classmethod
+    def validate_tts_timeout_seconds(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("TTS_TIMEOUT_SECONDS must be > 0")
+        return value
 
     @property
     def allowed_telegram_user_ids(self) -> list[int]:
@@ -179,8 +217,9 @@ class Settings(BaseSettings):
             provider=provider,
             language_code=str(providers.get("tts_language_code", self.tts_language_code)),
             voice_name=str(providers.get("tts_voice_name", self.tts_voice_name)),
-            voice_gender=str(providers.get("tts_voice_gender", self.tts_voice_gender)),
-            audio_encoding=str(providers.get("tts_audio_encoding", self.tts_audio_encoding)),
+            voice_gender=str(providers.get("tts_voice_gender", self.tts_voice_gender)).upper(),
+            audio_encoding=str(providers.get("tts_audio_encoding", self.tts_audio_encoding)).upper(),
+            timeout_seconds=float(providers.get("tts_timeout_seconds", self.tts_timeout_seconds)),
         )
 
     @property
@@ -232,7 +271,7 @@ def _load_primary_llm_config(path: Path) -> dict[str, str] | None:
     return resolved
 
 
-def _load_voice_config(path: Path) -> dict[str, str | bool]:
+def _load_voice_config(path: Path) -> dict[str, str | bool | float]:
     if not path.exists():
         return {}
 
@@ -245,7 +284,7 @@ def _load_voice_config(path: Path) -> dict[str, str | bool]:
     if not isinstance(voice, dict):
         raise ValueError("config/llm.local.toml [voice] must be a table")
 
-    resolved: dict[str, str | bool] = {}
+    resolved: dict[str, str | bool | float] = {}
     for key in (
         "stt_provider",
         "tts_provider",
@@ -263,6 +302,12 @@ def _load_voice_config(path: Path) -> dict[str, str | bool]:
         if not isinstance(value, str):
             raise ValueError(f"Invalid [voice].{key} value in config/llm.local.toml")
         resolved[key] = value.strip()
+
+    if "tts_timeout_seconds" in voice:
+        timeout = voice["tts_timeout_seconds"]
+        if not isinstance(timeout, (int, float)):
+            raise ValueError("Invalid [voice].tts_timeout_seconds value in config/llm.local.toml")
+        resolved["tts_timeout_seconds"] = float(timeout)
 
     if "voice_enabled_default" in voice:
         enabled = voice["voice_enabled_default"]
