@@ -1,4 +1,4 @@
-"""Minimal llama.cpp HTTP client for text generation."""
+"""llama.cpp HTTP adapter for provider-agnostic text generation."""
 
 from __future__ import annotations
 
@@ -6,8 +6,10 @@ from typing import Any
 
 import httpx
 
+from app.llm.base import LLMResponse
 
-class LlamaClient:
+
+class LlamaCppAdapter:
     """Tiny async client targeting llama.cpp OpenAI-compatible endpoint."""
 
     def __init__(self, *, base_url: str, model: str, timeout_seconds: float = 30.0) -> None:
@@ -15,7 +17,7 @@ class LlamaClient:
         self.model = model
         self.timeout_seconds = timeout_seconds
 
-    async def generate_reply(self, messages: list[dict[str, str]]) -> str:
+    async def generate(self, messages: list[dict[str, str]]) -> LLMResponse:
         """Request a concise response from local llama.cpp server."""
         payload: dict[str, Any] = {
             "model": self.model,
@@ -39,4 +41,12 @@ class LlamaClient:
         if not isinstance(content, str):
             raise ValueError("Missing assistant text content in llama.cpp response")
 
-        return content.strip()
+        return LLMResponse(text=content.strip(), is_fallback=False, raw=body)
+
+    async def generate_reply(self, messages: list[dict[str, str]]) -> str:
+        """Backward-compatible helper for text-only callers."""
+        response = await self.generate(messages)
+        return response.text
+
+
+LlamaClient = LlamaCppAdapter

@@ -8,10 +8,11 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 
-from app.db import Message, MessagesRepository, UsersRepository, connect, initialize_database
+from app.db import Message, MessagesRepository, UserSettingsRepository, UsersRepository, connect, initialize_database
 from app.domain.prompt_builder import build_chat_messages, load_system_prompt_ru
 from app.llm.client import LlamaClient
-from app.telegram.handlers import reset_handler, text_message_handler
+from app.llm.base import LLMResponse
+from app.telegram.handlers import reset_handler, text_message_handler, voice_message_handler
 from app.telegram.middleware import WhitelistMiddleware
 
 
@@ -289,7 +290,7 @@ async def test_fallback_reply_is_not_persisted(tmp_path: Path) -> None:
     )
     conn = await connect(db_path)
     try:
-        failing_llm = SimpleNamespace(generate_reply=AsyncMock(side_effect=RuntimeError("boom")))
+        failing_llm = SimpleNamespace(generate=AsyncMock(side_effect=RuntimeError("boom")))
         msg = SimpleNamespace(
             text="Привет",
             message_id=555,
@@ -314,3 +315,177 @@ async def test_fallback_reply_is_not_persisted(tmp_path: Path) -> None:
 
     assert len(saved) == 1
     assert saved[0].direction == "incoming"
+
+
+@pytest.mark.asyncio
+async def test_voice_handler_falls_back_when_stt_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeProc:
+        returncode = 0
+
+        async def communicate(self):
+            return b"", b""
+
+    async def fake_exec(*args, **kwargs):
+        return FakeProc()
+
+    monkeypatch.setattr("app.telegram.handlers.asyncio.create_subprocess_exec", fake_exec)
+    monkeypatch.setattr("app.telegram.handlers.shutil.which", lambda _: "/usr/bin/ffmpeg")
+
+    fake_bot = SimpleNamespace(
+        get_file=AsyncMock(return_value=SimpleNamespace(file_path="voice.ogg")),
+        download_file=AsyncMock(return_value=None),
+    )
+    msg = SimpleNamespace(
+        message_id=1,
+        voice=SimpleNamespace(file_id="id1"),
+        bot=fake_bot,
+        from_user=SimpleNamespace(id=88, full_name="Voice User"),
+        answer=AsyncMock(),
+        answer_voice=AsyncMock(),
+    )
+    failing_stt = SimpleNamespace(transcribe=AsyncMock(side_effect=RuntimeError("stt fail")))
+    llm_client = SimpleNamespace(generate=AsyncMock(return_value=LLMResponse(text="ok")))
+    tts_adapter = SimpleNamespace(synthesize=AsyncMock(return_value=str(tmp_path / "reply.ogg")))
+
+    await voice_message_handler(
+        msg,
+        db_conn=SimpleNamespace(),
+        llm_client=llm_client,
+        stt_adapter=failing_stt,
+        tts_adapter=tts_adapter,
+        default_tts_voice="ru",
+        tmp_dir=tmp_path,
+        system_prompt="system",
+        recent_context_messages=4,
+    )
+
+    msg.answer.assert_awaited_once_with("Не понял голос")
+
+
+@pytest.mark.asyncio
+async def test_voice_handler_happy_path_sends_voice(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db_path = tmp_path / "runtime" / "data" / "db" / "gosha.sqlite3"
+    await initialize_database(
+        db_path=db_path,
+        data_dir=tmp_path / "runtime" / "data",
+        tmp_dir=tmp_path / "runtime" / "tmp",
+        log_dir=tmp_path / "runtime" / "logs",
+    )
+    conn = await connect(db_path)
+    try:
+        users = UsersRepository(conn)
+        settings_repo = UserSettingsRepository(conn)
+        user = await users.get_or_create_user(telegram_user_id=501, display_name="Voice", is_admin=False)
+        await settings_repo.set_voice_enabled(user.id, enabled=True, default_tts_voice="ru")
+
+        class FakeProc:
+            returncode = 0
+
+            async def communicate(self):
+                return b"", b""
+
+        async def fake_exec(*args, **kwargs):
+            return FakeProc()
+
+        monkeypatch.setattr("app.telegram.handlers.asyncio.create_subprocess_exec", fake_exec)
+        monkeypatch.setattr("app.telegram.handlers.shutil.which", lambda _: "/usr/bin/ffmpeg")
+
+        ogg_path = tmp_path / "reply.ogg"
+        ogg_path.write_bytes(b"voice-bytes")
+        fake_bot = SimpleNamespace(
+            get_file=AsyncMock(return_value=SimpleNamespace(file_path="voice.ogg")),
+            download_file=AsyncMock(return_value=None),
+        )
+        msg = SimpleNamespace(
+            message_id=10,
+            voice=SimpleNamespace(file_id="id10"),
+            bot=fake_bot,
+            from_user=SimpleNamespace(id=501, full_name="Voice"),
+            answer=AsyncMock(),
+            answer_voice=AsyncMock(),
+        )
+
+        stt_adapter = SimpleNamespace(transcribe=AsyncMock(return_value="привет"))
+        llm_client = SimpleNamespace(generate=AsyncMock(return_value=LLMResponse(text="ответ")))
+        tts_adapter = SimpleNamespace(synthesize=AsyncMock(return_value=str(ogg_path)))
+
+        await voice_message_handler(
+            msg,
+            db_conn=conn,
+            llm_client=llm_client,
+            stt_adapter=stt_adapter,
+            tts_adapter=tts_adapter,
+            default_tts_voice="ru",
+            tmp_dir=tmp_path,
+            system_prompt="system",
+            recent_context_messages=4,
+        )
+
+        msg.answer_voice.assert_awaited_once()
+        msg.answer.assert_not_called()
+    finally:
+        await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_voice_handler_voice_off_sends_text(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db_path = tmp_path / "runtime" / "data" / "db" / "gosha.sqlite3"
+    await initialize_database(
+        db_path=db_path,
+        data_dir=tmp_path / "runtime" / "data",
+        tmp_dir=tmp_path / "runtime" / "tmp",
+        log_dir=tmp_path / "runtime" / "logs",
+    )
+    conn = await connect(db_path)
+    try:
+        users = UsersRepository(conn)
+        settings_repo = UserSettingsRepository(conn)
+        user = await users.get_or_create_user(telegram_user_id=7777, display_name="Text", is_admin=False)
+        await settings_repo.set_voice_enabled(user.id, enabled=False, default_tts_voice="ru")
+
+        class FakeProc:
+            returncode = 0
+
+            async def communicate(self):
+                return b"", b""
+
+        async def fake_exec(*args, **kwargs):
+            return FakeProc()
+
+        monkeypatch.setattr("app.telegram.handlers.asyncio.create_subprocess_exec", fake_exec)
+        monkeypatch.setattr("app.telegram.handlers.shutil.which", lambda _: "/usr/bin/ffmpeg")
+
+        fake_bot = SimpleNamespace(
+            get_file=AsyncMock(return_value=SimpleNamespace(file_path="voice.ogg")),
+            download_file=AsyncMock(return_value=None),
+        )
+        msg = SimpleNamespace(
+            message_id=11,
+            voice=SimpleNamespace(file_id="id11"),
+            bot=fake_bot,
+            from_user=SimpleNamespace(id=7777, full_name="Text"),
+            answer=AsyncMock(),
+            answer_voice=AsyncMock(),
+        )
+
+        stt_adapter = SimpleNamespace(transcribe=AsyncMock(return_value="привет"))
+        llm_client = SimpleNamespace(generate=AsyncMock(return_value=LLMResponse(text="текстовый ответ")))
+        tts_adapter = SimpleNamespace(synthesize=AsyncMock(return_value=str(tmp_path / "reply.ogg")))
+
+        await voice_message_handler(
+            msg,
+            db_conn=conn,
+            llm_client=llm_client,
+            stt_adapter=stt_adapter,
+            tts_adapter=tts_adapter,
+            default_tts_voice="ru",
+            tmp_dir=tmp_path,
+            system_prompt="system",
+            recent_context_messages=4,
+        )
+
+        msg.answer.assert_awaited_once_with("текстовый ответ")
+        msg.answer_voice.assert_not_called()
+        tts_adapter.synthesize.assert_not_awaited()
+    finally:
+        await conn.close()

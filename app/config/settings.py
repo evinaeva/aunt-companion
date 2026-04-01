@@ -33,6 +33,7 @@ class LLMSettings(BaseModel):
 class STTSettings(BaseModel):
     """Speech-to-text settings."""
 
+    provider: str = "faster_whisper"
     model_size: str
     compute_type: str
 
@@ -40,7 +41,16 @@ class STTSettings(BaseModel):
 class TTSSettings(BaseModel):
     """Text-to-speech settings."""
 
+    provider: str = "piper"
     piper_voice_path: Path
+
+
+class VoiceSettings(BaseModel):
+    """Voice runtime feature toggles."""
+
+    stt_provider: str = "faster_whisper"
+    tts_provider: str = "piper"
+    voice_enabled_default: bool = False
 
 
 class PathsSettings(BaseModel):
@@ -76,8 +86,11 @@ class Settings(BaseSettings):
 
     stt_model_size: str = Field(alias="STT_MODEL_SIZE")
     stt_compute_type: str = Field(alias="STT_COMPUTE_TYPE")
+    stt_provider: str = Field(default="faster_whisper", alias="STT_PROVIDER")
 
     piper_voice_path: Path = Field(alias="PIPER_VOICE_PATH")
+    tts_provider: str = Field(default="piper", alias="TTS_PROVIDER")
+    voice_enabled_default: bool = Field(default=False, alias="VOICE_ENABLED_DEFAULT")
 
     data_dir: Path = Field(alias="DATA_DIR")
     tmp_dir: Path = Field(alias="TMP_DIR")
@@ -140,12 +153,26 @@ class Settings(BaseSettings):
     @property
     def stt(self) -> STTSettings:
         """Structured STT settings."""
-        return STTSettings(model_size=self.stt_model_size, compute_type=self.stt_compute_type)
+        providers = _load_voice_config(LLM_LOCAL_CONFIG_PATH)
+        provider = providers.get("stt_provider", self.stt_provider)
+        return STTSettings(provider=provider, model_size=self.stt_model_size, compute_type=self.stt_compute_type)
 
     @property
     def tts(self) -> TTSSettings:
         """Structured TTS settings."""
-        return TTSSettings(piper_voice_path=self.piper_voice_path)
+        providers = _load_voice_config(LLM_LOCAL_CONFIG_PATH)
+        provider = providers.get("tts_provider", self.tts_provider)
+        return TTSSettings(provider=provider, piper_voice_path=self.piper_voice_path)
+
+    @property
+    def voice(self) -> VoiceSettings:
+        """Structured voice feature settings."""
+        from_toml = _load_voice_config(LLM_LOCAL_CONFIG_PATH)
+        return VoiceSettings(
+            stt_provider=from_toml.get("stt_provider", self.stt_provider),
+            tts_provider=from_toml.get("tts_provider", self.tts_provider),
+            voice_enabled_default=from_toml.get("voice_enabled_default", self.voice_enabled_default),
+        )
 
     @property
     def paths(self) -> PathsSettings:
@@ -182,6 +209,37 @@ def _load_primary_llm_config(path: Path) -> dict[str, str] | None:
             "config/llm.local.toml [primary].api_key must be set to a real Gemini API key "
             "or remove config/llm.local.toml to use .env fallback"
         )
+
+    return resolved
+
+
+def _load_voice_config(path: Path) -> dict[str, str | bool]:
+    if not path.exists():
+        return {}
+
+    with path.open("rb") as f:
+        body = tomllib.load(f)
+
+    voice = body.get("voice")
+    if voice is None:
+        return {}
+    if not isinstance(voice, dict):
+        raise ValueError("config/llm.local.toml [voice] must be a table")
+
+    resolved: dict[str, str | bool] = {}
+    for key in ("stt_provider", "tts_provider"):
+        value = voice.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            raise ValueError(f"Invalid [voice].{key} value in config/llm.local.toml")
+        resolved[key] = value.strip()
+
+    if "voice_enabled_default" in voice:
+        enabled = voice["voice_enabled_default"]
+        if not isinstance(enabled, bool):
+            raise ValueError("Invalid [voice].voice_enabled_default value in config/llm.local.toml")
+        resolved["voice_enabled_default"] = enabled
 
     return resolved
 

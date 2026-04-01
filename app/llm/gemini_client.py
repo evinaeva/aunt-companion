@@ -1,4 +1,4 @@
-"""Minimal Gemini Developer API adapter for text generation."""
+"""Gemini Developer API adapter for provider-agnostic text generation."""
 
 from __future__ import annotations
 
@@ -7,8 +7,10 @@ import asyncio
 from google import genai
 from google.genai import types
 
+from app.llm.base import LLMResponse
 
-class GeminiClient:
+
+class GeminiAdapter:
     """Tiny adapter around google-genai for text-only replies."""
 
     def __init__(self, *, api_key: str, model: str, base_url: str, timeout_seconds: float = 30.0) -> None:
@@ -19,7 +21,7 @@ class GeminiClient:
             http_options=types.HttpOptions(base_url=base_url, timeout=self.timeout_seconds * 1000),
         )
 
-    async def generate_reply(self, messages: list[dict[str, str]]) -> str:
+    async def generate(self, messages: list[dict[str, str]]) -> LLMResponse:
         system_instruction = ""
         conversation_lines: list[str] = []
 
@@ -38,7 +40,7 @@ class GeminiClient:
         if not prompt:
             prompt = "Пользователь: Ответь коротко и по делу."
 
-        def _request() -> str:
+        def _request() -> tuple[str, object]:
             response = self._client.models.generate_content(
                 model=self.model,
                 contents=prompt,
@@ -51,6 +53,15 @@ class GeminiClient:
             text = getattr(response, "text", None)
             if not isinstance(text, str) or not text.strip():
                 raise ValueError("Missing text content in Gemini response")
-            return text.strip()
+            return text.strip(), response
 
-        return await asyncio.to_thread(_request)
+        text, raw = await asyncio.to_thread(_request)
+        return LLMResponse(text=text, is_fallback=False, raw=raw)
+
+    async def generate_reply(self, messages: list[dict[str, str]]) -> str:
+        """Backward-compatible helper for text-only callers."""
+        response = await self.generate(messages)
+        return response.text
+
+
+GeminiClient = GeminiAdapter

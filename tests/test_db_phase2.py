@@ -84,6 +84,7 @@ async def test_repository_crud_basics(tmp_path: Path) -> None:
             reply_mode="text",
             tts_voice="ru_RU-irina-medium",
             language_code="ru",
+            voice_enabled=False,
         )
         saved_settings = await settings.get_by_user_id(user.id)
 
@@ -122,6 +123,7 @@ async def test_repository_crud_basics(tmp_path: Path) -> None:
 
     assert saved_settings is not None
     assert saved_settings.reply_mode == "text"
+    assert saved_settings.voice_enabled is False
     assert latest_convo is not None
     assert latest_convo.id == convo.id
     assert recent and recent[0].text == "Привет"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import aiosqlite
@@ -9,6 +10,7 @@ import aiosqlite
 from app.db.directories import ensure_runtime_directories
 
 BUSY_TIMEOUT_MS = 5000
+logger = logging.getLogger(__name__)
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS users (
@@ -23,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS user_settings (
     user_id INTEGER PRIMARY KEY,
     reply_mode TEXT NOT NULL DEFAULT 'text' CHECK (reply_mode IN ('text', 'voice')),
+    voice_enabled INTEGER NOT NULL DEFAULT 0 CHECK (voice_enabled IN (0, 1)),
     tts_voice TEXT NOT NULL,
     language_code TEXT NOT NULL DEFAULT 'ru',
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -106,6 +109,18 @@ async def initialize_database(
     conn = await connect(db_path)
     try:
         await conn.executescript(SCHEMA_SQL)
+        try:
+            await conn.execute(
+                """
+                ALTER TABLE user_settings
+                ADD COLUMN voice_enabled INTEGER NOT NULL DEFAULT 0 CHECK (voice_enabled IN (0, 1))
+                """
+            )
+            logger.info("SQLite migration: user_settings.voice_enabled added")
+        except aiosqlite.OperationalError as exc:
+            if "duplicate column name: voice_enabled" not in str(exc):
+                raise
+            logger.info("SQLite migration: user_settings.voice_enabled already exists")
         await conn.commit()
     finally:
         await conn.close()
