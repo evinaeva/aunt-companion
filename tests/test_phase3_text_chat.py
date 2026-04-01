@@ -8,9 +8,10 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 
-from app.db import Message, initialize_database
+from app.db import Message, MessagesRepository, UsersRepository, connect, initialize_database
 from app.domain.prompt_builder import build_chat_messages, load_system_prompt_ru
 from app.llm.client import LlamaClient
+from app.telegram.handlers import reset_handler, text_message_handler
 from app.telegram.middleware import WhitelistMiddleware
 
 
@@ -105,6 +106,31 @@ def test_prompt_builder_current_message_is_not_duplicated_when_recent_excludes_i
 
     user_contents = [item["content"] for item in messages if item["role"] == "user"]
     assert user_contents.count("Текущее сообщение") == 1
+
+
+def test_prompt_builder_preserves_chronology_for_repository_desc_order() -> None:
+    recent_messages = [
+        Message(
+            id=i,
+            user_id=101,
+            conversation_id=1,
+            direction="incoming" if i % 2 else "outgoing",
+            input_type="text",
+            text=f"msg-{i}",
+            telegram_message_id=i,
+        )
+        for i in range(6, 0, -1)
+    ]
+
+    messages = build_chat_messages(
+        system_prompt="system",
+        target_user_id=101,
+        recent_messages=recent_messages[:4],
+        current_user_text="new",
+    )
+
+    history_only = [item["content"] for item in messages[1:-1]]
+    assert history_only == ["msg-3", "msg-4", "msg-5", "msg-6"]
 
 
 def test_load_system_prompt_ru_works_outside_repo_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -216,3 +242,75 @@ async def test_llama_client_sends_expected_payload_with_model_and_messages() -> 
     assert result == "Короткий ответ"
     assert captured_payload["model"] == "Qwen"
     assert captured_payload["messages"] == [{"role": "user", "content": "Привет"}]
+
+
+@pytest.mark.asyncio
+async def test_reset_handler_clears_only_current_user_history(tmp_path: Path) -> None:
+    db_path = tmp_path / "runtime" / "data" / "db" / "gosha.sqlite3"
+    await initialize_database(
+        db_path=db_path,
+        data_dir=tmp_path / "runtime" / "data",
+        tmp_dir=tmp_path / "runtime" / "tmp",
+        log_dir=tmp_path / "runtime" / "logs",
+    )
+    conn = await connect(db_path)
+    try:
+        users = UsersRepository(conn)
+        messages = MessagesRepository(conn)
+        user_a = await users.get_or_create_user(telegram_user_id=101, display_name="A", is_admin=False)
+        user_b = await users.get_or_create_user(telegram_user_id=202, display_name="B", is_admin=False)
+        await messages.add_message(user_id=user_a.id, direction="incoming", input_type="text", text="A-msg")
+        await messages.add_message(user_id=user_b.id, direction="incoming", input_type="text", text="B-msg")
+
+        msg = SimpleNamespace(
+            from_user=SimpleNamespace(id=101, full_name="A"),
+            answer=AsyncMock(),
+        )
+        await reset_handler(msg, conn)
+
+        recent_a = await messages.list_recent_by_user(user_a.id, limit=10)
+        recent_b = await messages.list_recent_by_user(user_b.id, limit=10)
+    finally:
+        await conn.close()
+
+    assert recent_a == []
+    assert len(recent_b) == 1
+    msg.answer.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_fallback_reply_is_not_persisted(tmp_path: Path) -> None:
+    db_path = tmp_path / "runtime" / "data" / "db" / "gosha.sqlite3"
+    await initialize_database(
+        db_path=db_path,
+        data_dir=tmp_path / "runtime" / "data",
+        tmp_dir=tmp_path / "runtime" / "tmp",
+        log_dir=tmp_path / "runtime" / "logs",
+    )
+    conn = await connect(db_path)
+    try:
+        failing_llm = SimpleNamespace(generate_reply=AsyncMock(side_effect=RuntimeError("boom")))
+        msg = SimpleNamespace(
+            text="Привет",
+            message_id=555,
+            from_user=SimpleNamespace(id=777, full_name="User"),
+            answer=AsyncMock(),
+        )
+
+        await text_message_handler(
+            msg,
+            conn,
+            failing_llm,
+            system_prompt="system",
+            recent_context_messages=4,
+        )
+
+        users = UsersRepository(conn)
+        messages = MessagesRepository(conn)
+        user = await users.get_or_create_user(telegram_user_id=777, display_name="User", is_admin=False)
+        saved = await messages.list_recent_by_user(user.id, limit=10)
+    finally:
+        await conn.close()
+
+    assert len(saved) == 1
+    assert saved[0].direction == "incoming"

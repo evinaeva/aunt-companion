@@ -54,3 +54,21 @@ def test_settings_rejects_invalid_whitelist_token(monkeypatch: pytest.MonkeyPatc
 
     with pytest.raises(ValidationError, match="Invalid Telegram user id"):
         Settings()
+
+
+def test_settings_recent_context_messages_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    set_base_env(monkeypatch)
+    monkeypatch.setenv("ALLOWED_TELEGRAM_USER_IDS", "1,2")
+
+    settings = Settings()
+
+    assert settings.recent_context_messages == 4
+
+
+def test_settings_recent_context_messages_rejects_out_of_range(monkeypatch: pytest.MonkeyPatch) -> None:
+    set_base_env(monkeypatch)
+    monkeypatch.setenv("ALLOWED_TELEGRAM_USER_IDS", "1,2")
+    monkeypatch.setenv("RECENT_CONTEXT_MESSAGES", "1")
+
+    with pytest.raises(ValidationError, match="RECENT_CONTEXT_MESSAGES must be between 2 and 20"):
+        Settings()
