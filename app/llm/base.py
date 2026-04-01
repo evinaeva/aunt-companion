@@ -7,11 +7,21 @@ from typing import Any
 from typing import Protocol
 
 
+@dataclass(slots=True, frozen=True)
+class ToolInvocation:
+    """Single model-requested tool invocation."""
+
+    tool_name: str
+    arguments: dict[str, Any]
+    call_id: str | None = None
+
+
 @dataclass(slots=True)
 class LLMResponse:
     """Structured LLM result returned by adapters."""
 
     text: str
+    tool_invocations: tuple[ToolInvocation, ...] = ()
     is_fallback: bool = False
     raw: Any | None = None
 

@@ -15,6 +15,7 @@ dependencies = [
   "python-dotenv>=1.0,<2.0",
   "orjson>=3.10,<4.0",
   "google-genai>=1.0,<2.0",
+  "pydantic-ai>=0.8,<1.0",
 ]
 
 [project.optional-dependencies]
