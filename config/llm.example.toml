@@ -9,3 +9,8 @@ provider = "llama_cpp"
 model = "gemma-3-1b-it-Q4_K_M"
 base_url = "http://127.0.0.1:8012"
 api_key = ""
+
+[voice]
+stt_provider = "faster_whisper"
+tts_provider = "piper"
+voice_enabled_default = false

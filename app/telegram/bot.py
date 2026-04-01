@@ -8,10 +8,12 @@ import aiosqlite
 from aiogram import Bot, Dispatcher
 
 from app.config import Settings
-from app.llm.factory import build_primary_chat_client
 from app.domain.prompt_builder import load_system_prompt_ru
+from app.llm.factory import build_primary_chat_client
+from app.stt.engine import build_stt_adapter
 from app.telegram.handlers import router
 from app.telegram.middleware import WhitelistMiddleware
+from app.tts.engine import build_tts_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,8 @@ async def run_polling(settings: Settings, db_conn: aiosqlite.Connection) -> None
     dp.include_router(router)
 
     llm_client = build_primary_chat_client(settings)
+    stt_adapter = build_stt_adapter(settings.stt)
+    tts_adapter = build_tts_adapter(settings.tts, output_dir=settings.paths.tmp_dir)
     system_prompt = load_system_prompt_ru()
 
     logger.info(
@@ -33,6 +37,8 @@ async def run_polling(settings: Settings, db_conn: aiosqlite.Connection) -> None
             "allowed_users_count": len(settings.telegram.allowed_user_ids),
             "llm_base_url": settings.llm.base_url,
             "llm_model": settings.llm.model,
+            "stt_provider": settings.voice.stt_provider,
+            "tts_provider": settings.voice.tts_provider,
         },
     )
     try:
@@ -40,8 +46,12 @@ async def run_polling(settings: Settings, db_conn: aiosqlite.Connection) -> None
             bot,
             db_conn=db_conn,
             llm_client=llm_client,
+            stt_adapter=stt_adapter,
+            tts_adapter=tts_adapter,
             system_prompt=system_prompt,
             recent_context_messages=settings.recent_context_messages,
+            default_tts_voice=settings.tts.piper_voice_path.stem,
+            tmp_dir=settings.paths.tmp_dir,
         )
     finally:
         await bot.session.close()
