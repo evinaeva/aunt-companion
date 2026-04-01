@@ -82,3 +82,15 @@ class MessagesRepository:
             )
             for row in rows
         ]
+
+    async def delete_by_user(self, user_id: int) -> int:
+        """Delete all message history for a specific user."""
+        cursor = await self.conn.execute(
+            """
+            DELETE FROM messages
+            WHERE user_id = ?
+            """,
+            (user_id,),
+        )
+        await self.conn.commit()
+        return cursor.rowcount

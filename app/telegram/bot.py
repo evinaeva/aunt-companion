@@ -9,6 +9,7 @@ from aiogram import Bot, Dispatcher
 
 from app.config import Settings
 from app.llm.factory import build_primary_chat_client
+from app.domain.prompt_builder import load_system_prompt_ru
 from app.telegram.handlers import router
 from app.telegram.middleware import WhitelistMiddleware
 
@@ -24,6 +25,7 @@ async def run_polling(settings: Settings, db_conn: aiosqlite.Connection) -> None
     dp.include_router(router)
 
     llm_client = build_primary_chat_client(settings)
+    system_prompt = load_system_prompt_ru()
 
     logger.info(
         "Starting Telegram polling",
@@ -34,7 +36,13 @@ async def run_polling(settings: Settings, db_conn: aiosqlite.Connection) -> None
         },
     )
     try:
-        await dp.start_polling(bot, db_conn=db_conn, llm_client=llm_client)
+        await dp.start_polling(
+            bot,
+            db_conn=db_conn,
+            llm_client=llm_client,
+            system_prompt=system_prompt,
+            recent_context_messages=settings.recent_context_messages,
+        )
     finally:
         await bot.session.close()
         logger.info("Telegram polling stopped and bot session closed")

@@ -63,6 +63,7 @@ class Settings(BaseSettings):
 
     environment: str = "dev"
     log_level: str = "INFO"
+    recent_context_messages: int = Field(default=4, alias="RECENT_CONTEXT_MESSAGES")
 
     telegram_bot_token: str = Field(alias="TELEGRAM_BOT_TOKEN")
     allowed_telegram_user_ids_raw: str = Field(alias="ALLOWED_TELEGRAM_USER_IDS")
@@ -82,6 +83,14 @@ class Settings(BaseSettings):
     tmp_dir: Path = Field(alias="TMP_DIR")
     log_dir: Path = Field(alias="LOG_DIR")
     sqlite_path: Path = Field(alias="SQLITE_PATH")
+
+    @field_validator("recent_context_messages")
+    @classmethod
+    def validate_recent_context_messages(cls, value: int) -> int:
+        """Keep recent chat context in a small, predictable window."""
+        if value < 2 or value > 20:
+            raise ValueError("RECENT_CONTEXT_MESSAGES must be between 2 and 20")
+        return value
 
     @field_validator("allowed_telegram_user_ids_raw")
     @classmethod

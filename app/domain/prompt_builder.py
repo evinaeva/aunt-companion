@@ -25,7 +25,7 @@ def build_chat_messages(
     messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt.strip()}]
 
     same_user_messages = [item for item in recent_messages if item.user_id == target_user_id]
-    for message in reversed(same_user_messages[-10:]):
+    for message in reversed(same_user_messages):
         role = "user" if message.direction == "incoming" else "assistant"
         messages.append({"role": role, "content": message.text.strip()})
 
