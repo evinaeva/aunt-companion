@@ -1,10 +1,16 @@
-"""Runtime settings loaded from environment variables."""
+"""Runtime settings loaded from TOML and environment variables."""
 
+from __future__ import annotations
+
+import tomllib
 from functools import lru_cache
 from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+LLM_LOCAL_CONFIG_PATH = PROJECT_ROOT / "config" / "llm.local.toml"
 
 
 class TelegramSettings(BaseModel):
@@ -16,10 +22,12 @@ class TelegramSettings(BaseModel):
 
 
 class LLMSettings(BaseModel):
-    """Local llama.cpp server settings."""
+    """Resolved primary LLM settings."""
 
+    provider: str
     base_url: str
     model: str
+    api_key: str = ""
 
 
 class STTSettings(BaseModel):
@@ -62,6 +70,8 @@ class Settings(BaseSettings):
 
     llm_base_url: str = Field(alias="LLM_BASE_URL")
     llm_model: str = Field(alias="LLM_MODEL")
+    llm_provider: str = Field(default="llama_cpp", alias="LLM_PROVIDER")
+    llm_api_key: str = Field(default="", alias="LLM_API_KEY")
 
     stt_model_size: str = Field(alias="STT_MODEL_SIZE")
     stt_compute_type: str = Field(alias="STT_COMPUTE_TYPE")
@@ -106,8 +116,17 @@ class Settings(BaseSettings):
 
     @property
     def llm(self) -> LLMSettings:
-        """Structured LLM settings."""
-        return LLMSettings(base_url=self.llm_base_url, model=self.llm_model)
+        """Structured LLM settings with local TOML preference."""
+        toml_primary = _load_primary_llm_config(LLM_LOCAL_CONFIG_PATH)
+        if toml_primary is not None:
+            return LLMSettings(**toml_primary)
+
+        return LLMSettings(
+            provider=self.llm_provider,
+            base_url=self.llm_base_url,
+            model=self.llm_model,
+            api_key=self.llm_api_key,
+        )
 
     @property
     def stt(self) -> STTSettings:
@@ -128,6 +147,28 @@ class Settings(BaseSettings):
             log_dir=self.log_dir,
             sqlite_path=self.sqlite_path,
         )
+
+
+def _load_primary_llm_config(path: Path) -> dict[str, str] | None:
+    if not path.exists():
+        return None
+
+    with path.open("rb") as f:
+        body = tomllib.load(f)
+
+    primary = body.get("primary")
+    if not isinstance(primary, dict):
+        raise ValueError("config/llm.local.toml must contain [primary] section")
+
+    required = ("provider", "model", "base_url", "api_key")
+    resolved: dict[str, str] = {}
+    for key in required:
+        value = primary.get(key, "")
+        if not isinstance(value, str):
+            raise ValueError(f"Invalid [primary].{key} value in config/llm.local.toml")
+        resolved[key] = value.strip()
+
+    return resolved
 
 
 @lru_cache(maxsize=1)

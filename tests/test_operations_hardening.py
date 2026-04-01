@@ -153,19 +153,24 @@ async def test_run_polling_wires_dispatcher_and_client(monkeypatch: pytest.Monke
             call_log["polling_kwargs"] = kwargs
             call_log["polling_bot"] = bot
 
-    class FakeLlamaClient:
-        def __init__(self, *, base_url: str, model: str) -> None:
-            call_log["llm_base_url"] = base_url
-            call_log["llm_model"] = model
+    class FakeChatClient:
+        pass
+
+    def fake_build_primary_chat_client(passed_settings):
+        call_log["selected_settings"] = passed_settings
+        call_log["llm_provider"] = passed_settings.llm.provider
+        call_log["llm_base_url"] = passed_settings.llm.base_url
+        call_log["llm_model"] = passed_settings.llm.model
+        return FakeChatClient()
 
     settings = SimpleNamespace(
         telegram=SimpleNamespace(bot_token="token", allowed_user_ids=[1, 2]),
-        llm=SimpleNamespace(base_url="http://127.0.0.1:8012", model="Qwen"),
+        llm=SimpleNamespace(provider="llama_cpp", base_url="http://127.0.0.1:8012", model="Qwen"),
     )
 
     monkeypatch.setattr(telegram_bot, "Bot", FakeBot)
     monkeypatch.setattr(telegram_bot, "Dispatcher", FakeDispatcher)
-    monkeypatch.setattr(telegram_bot, "LlamaClient", FakeLlamaClient)
+    monkeypatch.setattr(telegram_bot, "build_primary_chat_client", fake_build_primary_chat_client)
 
     await telegram_bot.run_polling(settings, db_conn="db_conn")
 

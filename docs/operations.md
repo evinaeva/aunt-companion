@@ -2,7 +2,10 @@
 
 ## Start manually
 
-### LLM server
+### LLM (default Gemini, optional local llama.cpp)
+For default Telegram chat, set Gemini credentials in `config/llm.local.toml` (`gemini-2.5-flash-lite`).
+
+Optional local llama server (secondary backend):
 ```bash
 cd /srv/gosha
 ./scripts/04_start_llama_server.sh /srv/gosha
@@ -46,6 +49,6 @@ Check:
 
 ### 2. LLM not reachable
 Check:
-- `gosha-llama` service status/logs
-- `LLM_BASE_URL` in `.env`
-- local port/firewall policy
+- `config/llm.local.toml` `[primary]` values (Gemini model `gemini-2.5-flash-lite`, API key, base URL)
+- if using local llama as secondary: `gosha-llama` service status/logs and local port/firewall
+- fallback `.env` values (`LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`)

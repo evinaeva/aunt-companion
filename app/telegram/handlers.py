@@ -11,7 +11,7 @@ from aiogram.types import Message
 
 from app.db import ConversationsRepository, MessagesRepository, UsersRepository
 from app.domain.prompt_builder import build_chat_messages, load_system_prompt_ru
-from app.llm.client import LlamaClient
+from app.llm.base import ChatClient
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -28,7 +28,7 @@ async def help_handler(message: Message) -> None:
 
 
 @router.message(F.text)
-async def text_message_handler(message: Message, db_conn: aiosqlite.Connection, llm_client: LlamaClient) -> None:
+async def text_message_handler(message: Message, db_conn: aiosqlite.Connection, llm_client: ChatClient) -> None:
     text = (message.text or "").strip()
     if not text:
         await message.answer("Пожалуйста, отправьте текстовое сообщение.")
