@@ -26,7 +26,10 @@ router = Router()
 
 @router.message(Command("start"))
 async def start_handler(message: Message) -> None:
-    await message.answer("Привет! Я Гоша. Пиши текстом. Если захочешь начать заново — /reset.")
+    await message.answer(
+        "Привет! Я Гоша. Можно писать текстом или отправлять голосовые — пойму и отвечу. "
+        "Начать заново — /reset. Голосовые ответы: /voice_on / /voice_off."
+    )
 
 
 @router.message(Command("help"))

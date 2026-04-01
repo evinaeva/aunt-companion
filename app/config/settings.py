@@ -49,7 +49,7 @@ class TTSSettings(BaseModel):
     voice_name: str = ""
     voice_gender: Literal["SSML_VOICE_GENDER_UNSPECIFIED", "MALE", "FEMALE", "NEUTRAL"] = "FEMALE"
     audio_encoding: Literal["LINEAR16", "MP3", "OGG_OPUS", "MULAW", "ALAW"] = "OGG_OPUS"
-    timeout_seconds: float = 10.0
+    timeout_seconds: float = 30.0
 
 
 class VoiceSettings(BaseModel):
@@ -101,7 +101,7 @@ class Settings(BaseSettings):
     tts_voice_name: str = Field(default="", alias="TTS_VOICE_NAME")
     tts_voice_gender: str = Field(default="FEMALE", alias="TTS_VOICE_GENDER")
     tts_audio_encoding: str = Field(default="OGG_OPUS", alias="TTS_AUDIO_ENCODING")
-    tts_timeout_seconds: float = Field(default=10.0, alias="TTS_TIMEOUT_SECONDS")
+    tts_timeout_seconds: float = Field(default=30.0, alias="TTS_TIMEOUT_SECONDS")
     voice_enabled_default: bool = Field(default=False, alias="VOICE_ENABLED_DEFAULT")
 
     data_dir: Path = Field(alias="DATA_DIR")
