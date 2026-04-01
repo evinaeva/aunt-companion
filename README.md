@@ -5,7 +5,7 @@ Gosha is a self-hosted Russian-language Telegram companion focused on **text cha
 This repository currently provides:
 - Telegram polling bot with allowlist middleware
 - Local SQLite initialization and repositories
-- Local llama.cpp HTTP client integration for replies
+- Gemini API integration (default) with optional local llama.cpp backend
 - Ubuntu/server scripts and systemd templates
 - Tests for config, DB behavior, and text-chat wiring
 
@@ -14,7 +14,7 @@ This repository currently provides:
 - `/start` and `/help` commands
 - Text input -> text output flow
 - User creation and message persistence in SQLite
-- Local llama.cpp request path with fallback message on LLM failures
+- Gemini `gemini-2.5-flash-lite` request path (default) with optional llama.cpp secondary backend
 - Basic operational scripts for bootstrap/run/smoke checks
 
 ## Not implemented yet
@@ -52,3 +52,10 @@ nano /srv/gosha/.env
 ```
 
 See `docs/server-quickstart.md` and `docs/operations.md` for server operations.
+
+
+## LLM configuration
+
+Preferred runtime config is `config/llm.local.toml` (copy from `config/llm.example.toml`). Telegram chat always uses `[primary]`.
+Use Gemini in `[primary]` (`gemini-2.5-flash-lite`) and keep local llama.cpp in `[secondary]` for optional local tasks.
+If `config/llm.local.toml` is missing, app falls back to `.env` (`LLM_PROVIDER`, `LLM_MODEL`, `LLM_BASE_URL`, `LLM_API_KEY`).

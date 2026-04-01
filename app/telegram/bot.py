@@ -8,7 +8,7 @@ import aiosqlite
 from aiogram import Bot, Dispatcher
 
 from app.config import Settings
-from app.llm.client import LlamaClient
+from app.llm.factory import build_primary_chat_client
 from app.telegram.handlers import router
 from app.telegram.middleware import WhitelistMiddleware
 
@@ -23,7 +23,7 @@ async def run_polling(settings: Settings, db_conn: aiosqlite.Connection) -> None
     dp.message.middleware(WhitelistMiddleware(set(settings.telegram.allowed_user_ids)))
     dp.include_router(router)
 
-    llm_client = LlamaClient(base_url=settings.llm.base_url, model=settings.llm.model)
+    llm_client = build_primary_chat_client(settings)
 
     logger.info(
         "Starting Telegram polling",

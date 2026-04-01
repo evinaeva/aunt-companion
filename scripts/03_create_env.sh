@@ -9,3 +9,10 @@ if [ ! -f "$PROJECT_ROOT/.env" ]; then
 else
   echo "$PROJECT_ROOT/.env already exists"
 fi
+
+if [ ! -f "$PROJECT_ROOT/config/llm.local.toml" ]; then
+  cp "$PROJECT_ROOT/config/llm.example.toml" "$PROJECT_ROOT/config/llm.local.toml"
+  echo "Created $PROJECT_ROOT/config/llm.local.toml from llm.example.toml"
+else
+  echo "$PROJECT_ROOT/config/llm.local.toml already exists"
+fi
