@@ -81,6 +81,23 @@ CREATE TABLE IF NOT EXISTS daily_summaries (
 
 CREATE INDEX IF NOT EXISTS idx_daily_summaries_user_date
 ON daily_summaries(user_id, summary_date DESC);
+
+CREATE TABLE IF NOT EXISTS reminders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    remind_at_utc TEXT NOT NULL,
+    timezone TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'sent', 'cancelled')),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_reminders_user_time
+ON reminders(user_id, remind_at_utc ASC, id ASC);
+
+CREATE INDEX IF NOT EXISTS idx_reminders_due
+ON reminders(status, remind_at_utc ASC, id ASC);
 """
 
 USER_SETTINGS_TARGET_COLUMNS = {"user_id", "voice_enabled", "updated_at"}
