@@ -8,6 +8,7 @@ import logging
 from app.config import configure_logging, get_settings
 from app.db import connect, initialize_database
 from app.telegram.bot import run_polling
+from app.telegram.dependencies import get_toolset_factory
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,9 @@ async def _run() -> None:
         log_dir=settings.paths.log_dir,
     )
     logger.info("Runtime directories and database initialized")
+
+    # Preload toolset factory with safe fallback to no-tools mode.
+    get_toolset_factory()
 
     conn = await connect(settings.paths.sqlite_path)
     logger.info("SQLite connection opened")

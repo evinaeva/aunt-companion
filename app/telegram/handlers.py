@@ -6,6 +6,7 @@ import logging
 import asyncio
 import shutil
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 import aiosqlite
@@ -17,6 +18,8 @@ from aiogram.types import Message
 from app.db import ConversationsRepository, MessagesRepository, UserSettingsRepository, UsersRepository
 from app.domain.prompt_builder import build_chat_messages, load_system_prompt_ru
 from app.llm.base import ChatClient
+from app.llm.tool_context import ToolRequestContext
+from app.telegram.dependencies import build_tool_runtime, get_toolset_factory
 from app.stt.engine import STTAdapter
 from app.tts.engine import TTSAdapter
 
@@ -248,9 +251,22 @@ async def _generate_and_persist_reply(
         recent_messages=recent_without_current,
         current_user_text=incoming_text,
     )
+    request_context = ToolRequestContext(
+        user_id=user.id,
+        telegram_user_id=telegram_user_id,
+        now_utc=datetime.now(UTC),
+    )
+    toolset_factory = get_toolset_factory()
+    registered_tools = tuple(toolset_factory(request_context))
+    runtime = build_tool_runtime(llm_client)
+
     save_assistant_reply = True
     try:
-        llm_response = await llm_client.generate(llm_messages)
+        llm_response = await runtime.generate(
+            llm_messages,
+            request_context=request_context,
+            tools=registered_tools,
+        )
         reply_text = llm_response.text.strip()
         if not reply_text:
             reply_text = "Что-то не ответилось. Попробуй ещё раз."
